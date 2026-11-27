@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Doea Enam — Dashboard Keuangan</title>
+<meta name="description" content="Dashboard laporan keuangan Doea Enam">
+<meta name="theme-color" content="#FBF6EE">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon-64.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Doea Enam">
+<style>
+  html,body{margin:0;background:#FBF6EE}
+  #muat{position:fixed;inset:0;display:grid;place-items:center;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#4A3B2E;z-index:300;background:#FBF6EE}
+  #muat .isi{text-align:center;padding:24px}
+  #muat svg{width:84px;height:68px;animation:kepak 1.4s ease-in-out infinite}
+  #muat .nama{font-family:"Brush Script MT",cursive;font-size:34px;color:#3B2412;margin-top:6px}
+  #muat .ket{font-size:13px;color:#8E7F70;margin-top:10px}
+  #muat button{margin-top:16px;background:#F5B83D;border:0;border-radius:12px;padding:11px 18px;font-weight:700;font-size:14px;cursor:pointer}
+  @keyframes kepak{0%,100%{transform:scale(1)}50%{transform:scale(.92,1)}}
+  #pasang{position:fixed;left:12px;right:12px;bottom:calc(86px + env(safe-area-inset-bottom));z-index:150;display:none;align-items:center;gap:12px;background:#3B2412;color:#FFF8EC;border-radius:16px;padding:12px 14px;font:14px system-ui,-apple-system,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  #pasang b{display:block;margin-bottom:2px}
+  #pasang .tombol{margin-left:auto;display:flex;gap:6px;flex-shrink:0}
+  #pasang button{border:0;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}
+  #pasang .ya{background:#F5B83D;color:#2B1A0D}#pasang .tidak{background:transparent;color:#E8DCC8}
+  @media (min-width:901px){#pasang{left:auto;right:24px;bottom:24px;max-width:420px}}
+</style>
+</head>
+<body>
+<div id="muat"><div class="isi">
+  <svg viewBox="0 0 80 64" aria-hidden="true">
+    <path d="M40 34C32 14 14 6 9 14s6 22 31 20z" fill="#F5B83D"/>
+    <path d="M40 34C48 14 66 6 71 14s-6 22-31 20z" fill="#F7C963"/>
+    <path d="M40 35c-6 8-18 18-21 12s10-12 21-12zM40 35c6 8 18 18 21 12s-10-12-21-12z" fill="#E4A11B" opacity=".85"/>
+    <path d="M40 20v30M40 20c-2-6-6-9-9-10M40 20c2-6 6-9 9-10" stroke="#2B1A0D" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </svg>
+  <div class="nama">doea enam</div>
+  <div class="ket" id="muatKet">Memuat dashboard…</div>
+</div></div>
+<div id="pasang" role="dialog" aria-label="Pasang aplikasi"><div id="pasangTeks"></div><div class="tombol"><button class="tidak" id="pasangNanti">Nanti</button><button class="ya" id="pasangYa">Pasang</button></div></div>
+
+<script>
+/* Alamat server (Google Apps Script Web App) — satu-satunya pengaturan di file ini. */
+window.DE_API_URL = 'https://script.google.com/macros/s/AKfycbzjNhQcWS9USLsYnN3O1zv_8_-UBiMVy3lSS0zQBd1bczpQbAglPFeXSeDOWmhWhWmy/exec';
+
+(function () {
+  const KUNCI_UI = 'de_ui_v1';
+  const ket = document.getElementById('muatKet');
+
+  function ambilUi() {
+    return fetch(window.DE_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: 'ui' }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (!j || !j.ok) throw new Error((j && j.error) || 'Gagal memuat tampilan'); return j.data; });
+  }
+
+  /* Memasang tampilan dashboard (Index + Styles + Scripts dari server) ke halaman ini. */
+  async function pasangUi(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.head.querySelectorAll('link[rel="stylesheet"], link[rel="preconnect"], style').forEach(function (n) {
+      document.head.appendChild(document.importNode(n, true));
+    });
+    const skrip = Array.prototype.slice.call(doc.querySelectorAll('script'));
+    skrip.forEach(function (s) { s.parentNode.removeChild(s); });
+    const muat = document.getElementById('muat'), pasang = document.getElementById('pasang');
+    document.body.innerHTML = doc.body.innerHTML;
+    document.body.appendChild(muat); document.body.appendChild(pasang);
+    for (const s of skrip) {
+      await new Promise(function (selesai) {
+        const n = document.createElement('script');
+        if (s.src) { n.src = s.src; n.onload = selesai; n.onerror = selesai; document.body.appendChild(n); }
+        else { n.textContent = s.textContent; document.body.appendChild(n); selesai(); }
+      });
+    }
+    muat.style.transition = 'opacity .25s'; muat.style.opacity = '0';
+    setTimeout(function () { muat.remove(); }, 260);
+    siapkanPasang();
+  }
+
+  function gagal(pesan) {
+    ket.innerHTML = '';
+    ket.appendChild(document.createTextNode(pesan));
+    const b = document.createElement('button'); b.textContent = 'Coba lagi'; b.onclick = function () { location.reload(); };
+    ket.parentNode.appendChild(b);
+  }
+
+  /* Tampilan disimpan di perangkat agar aplikasi cepat terbuka; versi terbaru diambil setiap kali dibuka. */
+  let simpanan = null;
+  try { simpanan = localStorage.getItem(KUNCI_UI); } catch (e) {}
+  const segar = ambilUi().then(function (html) { try { localStorage.setItem(KUNCI_UI, html); } catch (e) {} return html; });
+  if (simpanan) {
+    pasangUi(simpanan);
+    segar.catch(function () {});
+  } else {
+    segar.then(pasangUi).catch(function () {
+      gagal(navigator.onLine ? 'Server belum bisa dihubungi. Coba lagi sebentar.' : 'Perangkat sedang offline. Sambungkan internet lalu coba lagi.');
+    });
+  }
+
+  /* Ajakan memasang aplikasi: Android (prompt asli) dan iPhone (petunjuk Bagikan → Tambahkan ke Layar Utama). */
+  let tundaPasang = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); tundaPasang = e; siapkanPasang(); });
+  function siapkanPasang() {
+    const box = document.getElementById('pasang');
+    if (!box) return;
+    const mandiri = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    let ditolak = false;
+    try { ditolak = Date.now() - Number(localStorage.getItem('de_pasang_nanti') || 0) < 3 * 86400000; } catch (e) {}
+    if (mandiri || ditolak) return;
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const teks = document.getElementById('pasangTeks'), ya = document.getElementById('pasangYa');
+    if (tundaPasang) {
+      teks.innerHTML = '<b>Pasang aplikasi Doea Enam</b>Buka dashboard langsung dari layar utama HP.';
+      ya.style.display = '';
+      ya.onclick = function () { box.style.display = 'none'; tundaPasang.prompt(); tundaPasang = null; };
+    } else if (ios) {
+      teks.innerHTML = '<b>Pasang di iPhone</b>Ketuk ikon Bagikan <span aria-hidden="true">⎋</span> lalu pilih <b style="display:inline">Tambahkan ke Layar Utama</b>.';
+      ya.style.display = 'none';
+    } else return;
+    box.style.display = 'flex';
+    document.getElementById('pasangNanti').onclick = function () {
+      box.style.display = 'none';
+      try { localStorage.setItem('de_pasang_nanti', String(Date.now())); } catch (e) {}
+    };
+  }
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
